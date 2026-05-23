@@ -87,8 +87,15 @@ def main():
             # STAGE 2: Json Match
             for rank, candidate_id in enumerate(top_10_cv_ids):
                 raw_cv = df.loc[candidate_id, 'generated_resume_text']
-                
+                # Find out which role this CV was originally generated for
+                cv_native_role = df.loc[candidate_id, 'source_jd_title']
                 actual_tier = df.loc[candidate_id, 'assigned_tier']
+                if cv_native_role != target_role_title:
+                    # If retrieved for the wrong job, they are objectively a Bad Match for THIS campaign
+                    actual_tier = "Bad Match" 
+                else:
+                    # If it's the right job, keep their intended ground truth
+                    actual_tier = df.loc[candidate_id, 'assigned_tier']
                 # Create a dynamic config for this specific candidate evaluation
                 trace_config = {
                     "callbacks": [langfuse_handler],
