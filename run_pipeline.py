@@ -30,7 +30,7 @@ def format_list_for_excel(item_list):
 def calculate_performance_metrics(df_results):
     """
     Calculates the Spearman Rank Correlation and tier averages.
-    Note: Update the `tier_weights` dict to match your exact CSV string labels!
+    
     """
     # Maps text tiers to numerical ranks for correlation math
     tier_weights = {

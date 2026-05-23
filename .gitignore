@@ -3,3 +3,6 @@
 
 # Datasets folder
 /datasets/
+
+# Python cache
+__pycache__/

@@ -109,7 +109,7 @@ def native_pg_hybrid_search(query: str, k: int = 3, rrf_constant: int = 60) -> L
     
     retrieved_docs = []
     
-    # Execute query directly against your local Docker database
+    # Execute query directly against the local Docker database
     with psycopg.connect("postgresql://langchain:langchain@localhost:6024/langchain") as conn:
         with conn.cursor() as cur:
             cur.execute(sql_query, (
@@ -169,7 +169,7 @@ def get_collection_count() -> int:
     try:
         with psycopg.connect("postgresql://langchain:langchain@localhost:6024/langchain") as conn:
             with conn.cursor() as cur:
-                # COLLECTION_NAME is your existing variable ("cv_evaluation_corpus")
+                
                 cur.execute(sql_query, (COLLECTION_NAME,))
                 result = cur.fetchone()
                 if result:
