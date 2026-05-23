@@ -148,3 +148,33 @@ def retrieve_context(
         
     else:
         raise ValueError(f"Unknown retrieval strategy option: {strategy}")
+    
+
+
+def get_collection_count() -> int:
+    """
+    Queries the database to return the total number of document chunks 
+    saved in the active vector collection.
+    """
+    
+    # The exact tables LangChain creates under the hood
+    sql_query = """
+        SELECT COUNT(*) 
+        FROM langchain_pg_embedding cpe
+        JOIN langchain_pg_collection cpc ON cpe.collection_id = cpc.uuid
+        WHERE cpc.name = %s;
+    """
+    
+    count = 0
+    try:
+        with psycopg.connect("postgresql://langchain:langchain@localhost:6024/langchain") as conn:
+            with conn.cursor() as cur:
+                # COLLECTION_NAME is your existing variable ("cv_evaluation_corpus")
+                cur.execute(sql_query, (COLLECTION_NAME,))
+                result = cur.fetchone()
+                if result:
+                    count = result[0]
+    except Exception as e:
+        print(f"Database connection error: {e}")
+        
+    return count

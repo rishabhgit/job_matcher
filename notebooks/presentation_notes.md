@@ -12,8 +12,13 @@
 
 ## Data Preparation and Embedding
 
-## JD and CV Embedding and Evaluation
+## JD and CV Embedding Structured Output generation
 - Summarised JD and top CV into structured JSON objects to reduce hallucination from Scoring agent
 - However structured JD may miss some synonyms and degrade vector DB search results. At the same time, using the whole JD as search string may exceed the context window of sentence transformer mode.
 - To ovecome this issue, stripped away non essential JD information like About company and saved essential JD info along with structured fields.
 - The essential JD string can be used to query vector DB and the structured JD fields can be used for fianl scoring of CVs. 
+
+## JD and CV Evaluation
+- The evaluator agent has to evaluate for different kinds of roles, so it need to assume personas based on role type.
+- However, to keep the solution generic and work for all types of technical roles, hardcoding personas is not a good solution.
+- Extracted the 'role name' from the JD and used it to provide context to the evaluator agent without explicitly assuming a persona.

@@ -80,7 +80,7 @@ class JobRequirements(BaseModel):
     years_experience: str = Field(description="The required years of experience. Return 'Not Specified' if missing.")
     core_responsibilities: List[str] = Field(description="3 to 5 brief bullet points summarizing the main duties")
 
-def run_jd_extraction_agent(jd_text: str) -> Dict[str, Any]:
+def run_jd_extraction_agent(jd_text: str, config: RunnableConfig = None) -> Dict[str, Any]:
     """
     Analyzes a raw Job Description and extracts both a dense natural-language 
     string for vector search, and structured JSON arrays for final evaluation.
@@ -104,7 +104,7 @@ def run_jd_extraction_agent(jd_text: str) -> Dict[str, Any]:
     prompt = prompt.partial(format_instructions=parser.get_format_instructions())
     chain = prompt | llm | parser
     
-    return chain.invoke({"jd_text": jd_text})
+    return chain.invoke({"jd_text": jd_text},  config = config)
 
 
 ## Code block to define agent to parse anonymised CV into a json format for comparison.
@@ -114,7 +114,7 @@ class CandidateProfile(BaseModel):
     domain_knowledge: List[str] = Field(description="Industry-specific concepts, methodologies, or sectors (e.g., Banking, CI/CD, Agile, RAG, Regulatory Reporting).")
     key_achievements: List[str] = Field(description="Extract the top 3 to 5 measurable or highly impactful technical achievements.")
 
-def run_resume_extraction_agent(cv_text: str) -> Dict[str, Any]:
+def run_resume_extraction_agent(cv_text: str, config: RunnableConfig = None) -> Dict[str, Any]:
     """
     Analyzes an anonymized resume and extracts CV information in JSON form 
     to be mapped against the JD requirements.
@@ -141,4 +141,61 @@ def run_resume_extraction_agent(cv_text: str) -> Dict[str, Any]:
     
     chain = prompt | llm | parser
     
-    return chain.invoke({"cv_text": cv_text})
+    return chain.invoke({"cv_text": cv_text}, config=config)
+
+
+## Code Block to define Evaluator agent to score a json based JD against json based CV
+class EvaluationResult(BaseModel):
+    
+    must_have_skills_audit: Dict[str, str] = Field(
+        description="A dictionary where keys are the exact 'must_have_skills' from the JD, and values are either 'Found', 'Equivalent Found (state the equivalent)', or 'Missing'."
+    )
+    # Extract strengths and gaps based on the audit
+    strengths: List[str] = Field(description="Explicit alignments between the candidate's skills and the JD's requirements.")
+    critical_gaps: List[str] = Field(description="Mandatory skills or years of experience present in the JD but missing from the candidate's profile.")
+    
+    # Write the justification based on the gaps
+    justification: str = Field(description="A concise executive summary defending the upcoming score.")
+    
+    # FINALLY, output the score and recommendation
+    match_score: int = Field(description="A quantitative score from 0 to 100 based strictly on the rubric and the critical_gaps above.")
+    recommendation: str = Field(description="Strictly one of: 'Strong Hire', 'Proceed to Interview', 'Borderline', 'Reject'.")
+
+
+def run_evaluator_agent(jd_structured: Dict[str, Any], cv_structured: Dict[str, Any], config: RunnableConfig = None) -> Dict[str, Any]:
+    """
+    Performs a deterministic, JSON-to-JSON comparison between the 
+    extracted Job Requirements and the extracted Candidate Profile.
+    """
+    llm = ChatOllama(model="llama3.1:8b", temperature=0.0, format="json")
+    parser = JsonOutputParser(pydantic_object=EvaluationResult)
+    
+    # Extract the role title to help evaluator engine work for different kinds of roles
+    target_role = jd_structured.get("role_title", "the specified position")
+    
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", (
+            "You are an expert technical AI assessment engine.\n"
+            "Evaluate the candidate's JSON profile against the core JSON requirements for the role of '{target_role}'.\n\n"
+            "RULE 1: SEMANTIC EQUIVALENCE. Recognize industry equivalents (e.g., GCP Firestore = AWS DynamoDB, or PyTorch = TensorFlow). Do not penalize for equivalent technologies.\n\n"
+            "RULE 2: STRICT SCORING RUBRIC. You must forcefully prevent score inflation by anchoring your 'match_score' to this exact scale:\n"
+            "- 90 to 100 (Strong Hire): Candidate possesses EVERY 'must_have' skill (or exact equivalent) AND meets or exceeds the required years of experience.\n"
+            "- 70 to 89 (Proceed to Interview): Candidate is missing 1 or 2 'must_have' skills, but has excellent domain knowledge.\n"
+            "- 50 to 69 (Borderline): Candidate is missing major 'must_have' skills or significantly lacks the required years of experience.\n"
+            "- 0 to 49 (Reject): Candidate lacks the fundamental concepts and required seniority.\n\n"
+            "{format_instructions}"
+        )),
+        ("human", (
+            "### JOB REQUIREMENTS:\n{jd_json}\n\n"
+            "### CANDIDATE PROFILE:\n{cv_json}"
+        ))
+    ])
+    
+    prompt = prompt.partial(format_instructions=parser.get_format_instructions())
+    chain = prompt | llm | parser
+    
+    return chain.invoke({
+        "target_role": target_role, # Injecting the exact title to give the LLM context
+        "jd_json": jd_structured,
+        "cv_json": cv_structured
+    }, config = config)
